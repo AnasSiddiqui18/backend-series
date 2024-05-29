@@ -10,6 +10,10 @@ const storage = multer.diskStorage({
 
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9); // with this code we are giving the file a random number something like this 1717036800000-98765432 ensuring there's no mismatch in the file names.
 
+    console.log("multer function is running");
+
+    console.log("file original name", file.originalname);
+
     const fileEx = file.originalname;
     const splitRes = fileEx.split(".");
 

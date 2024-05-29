@@ -3,6 +3,28 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/apiResponse.js";
+import JWT from "jsonwebtoken";
+
+const generateAccessAndRefreshTokens = async (userId) => {
+  console.log("user id", userId);
+
+  try {
+    const user = await User.findById(userId);
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating referesh and access token"
+    );
+  }
+};
 
 const registerUser = asyncHandler(async (req, res) => {
   console.log("req body", req.body);
@@ -32,9 +54,9 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "User already exist"); // we are throwing the api error class and it will caught by async handler catch block
   }
 
-  console.log("request file object", req.files);
+  console.log("request file object", req.files.avatar);
 
-  const avatarLocalPath = req?.files?.avatar[0]?.path;
+  const avatarLocalPath = req?.files?.avatar && req?.files?.avatar[0]?.path;
 
   console.log("avatarLocalPath", avatarLocalPath);
 
@@ -76,8 +98,6 @@ const registerUser = asyncHandler(async (req, res) => {
   if (!createdUser)
     throw new ApiError(500, "Something went wrong while registering the user");
 
-  User.isPasswordCorrect();
-
   res
     .status(201)
     .json(new ApiResponse(200, createdUser, "User registered successfully"));
@@ -97,4 +117,235 @@ const registerUser = asyncHandler(async (req, res) => {
   //   return res
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res) => {
+  const { email, password, userName } = req.body;
+
+  console.log("password in login function", password);
+
+  console.log("req body data", req.body);
+
+  console.log("login email", email);
+
+  if (email) {
+    console.log("email is present", email);
+  }
+
+  if (!userName && !email) {
+    // if the user name or the email both fields are not provided by the user so we will throw an error.
+    throw new ApiError(400, "username or email is required");
+  }
+
+  const user = await User.findOne({
+    $or: [{ userName }, { email }],
+  });
+
+  console.log("user present", user);
+
+  if (!user) throw new ApiError(404, "user does not exist");
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) throw new ApiError(401, "Invalid user credentials");
+
+  console.log("login function is working");
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    user._id
+  );
+
+  console.log("login access token", accessToken);
+  console.log("login refresh token", refreshToken);
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options) // adding cookie using cookie parser package. By this we can verify the user that the user is logged in or not.
+    .cookie("refreshToken", refreshToken, options) // adding cookie using cookie parser package. // //
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+        }, // we are also setting the cookie on the frontend as well sending the cookie in the response if the user want's also to store this cookie in the local storage or anywhere in the frontend.
+        "User logged in successfully"
+      )
+    );
+
+  // the reason why we are making the httpOnly and secure to true is that the cookie will not modify from frontend. It will only be modify on the backend only.
+
+  // req.body -> data
+  // username or email
+  // find the user
+  //  password check
+  // generate access & refresh token
+  // send cookie and send response
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $unset: {
+        refreshToken: 1, // deleting the refresh token when the user logs out.
+      },
+    },
+    { new: true }
+  );
+
+  // $set is used to add a new field or update the existing value of a field.
+
+  // $unset is used to remove a field.
+
+  console.log("updated user", user);
+
+  console.log("req user logout", req.user._id);
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) throw new ApiError(401, "Unauthorized request");
+
+  try {
+    const decodedToken = JWT.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedToken._id);
+    if (!user) throw new ApiError(401, "Invalid refresh token");
+
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "Refresh token is expired or used.");
+    }
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    const { refreshToken, accessToken } = await generateAccessAndRefreshTokens(
+      user._id
+    );
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+          },
+          "Access token refreshed"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh token");
+  }
+});
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  console.log("old password", oldPassword);
+  console.log("new password", newPassword);
+
+  try {
+    const user = await User.findById(req.user?._id);
+    console.log("user in update password function", user);
+    if (!user) throw new ApiError(401, "Unauthorized Request");
+
+    const verifyPassword = await user.isPasswordCorrect(oldPassword);
+    if (!verifyPassword) throw new ApiError(400, "Invalid old password"); // verifying the old password with the password present in the DB
+    console.log("verify password", verifyPassword);
+
+    user.password = newPassword;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, {}, "Password updated successfully"));
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid credentials");
+  }
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  try {
+    const currentUser = req.user;
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          currentUser,
+        },
+        "Successfully fetched current user"
+      )
+    );
+  } catch (error) {
+    throw new ApiError(
+      400,
+      error?.message || "Error while getting the current user"
+    );
+  }
+});
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+  if (!fullName || !email) throw new ApiError(401, "All fields are required");
+
+  const user = await User.findById(req.user._id);
+  user.fullName = fullName;
+  user.email = email;
+  const updatedUser = await user.save({ validateBeforeSave: false });
+
+  if (!updatedUser) throw new ApiError(401, "User can't update");
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        updatedUser,
+      },
+      "fullName & email updated successfully"
+    )
+  );
+
+  console.log("user details", user);
+  res.end();
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateAccountDetails,
+};
