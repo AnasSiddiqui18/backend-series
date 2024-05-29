@@ -319,25 +319,56 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullName, email } = req.body;
   if (!fullName || !email) throw new ApiError(401, "All fields are required");
 
-  const user = await User.findById(req.user._id);
-  user.fullName = fullName;
-  user.email = email;
-  const updatedUser = await user.save({ validateBeforeSave: false });
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        fullName,
+        email,
+      },
+    },
+    { new: true }
+  ).select("-password");
 
-  if (!updatedUser) throw new ApiError(401, "User can't update");
+  if (!user) throw new ApiError(401, "User can't update");
 
-  res.status(200).json(
+  console.log("fullname and email updated successfully", user);
+
+  return res.status(200).json(
     new ApiResponse(
       200,
       {
-        updatedUser,
+        user,
       },
-      "fullName & email updated successfully"
+      "Account details updated successfully"
     )
   );
+});
 
-  console.log("user details", user);
-  res.end();
+const updateAvatar = asyncHandler(async (req, res) => {
+  const avatarLocalPath = req.files?.avatar[0]?.path;
+  console.log("avatar to update", avatarLocalPath);
+
+  if (!avatarLocalPath) throw new ApiError(401, "avatar not found");
+
+  const cloudinaryAvatarUrl = await uploadOnCloudinary(avatarLocalPath);
+  console.log("avatar uploaded on cloudinary", cloudinaryAvatarUrl);
+
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        avatar: cloudinaryAvatarUrl.url,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password -refreshToken");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { updatedUser }, "avatar updated successfully"));
 });
 
 export {
@@ -348,4 +379,5 @@ export {
   changeCurrentPassword,
   getCurrentUser,
   updateAccountDetails,
+  updateAvatar,
 };
