@@ -7,6 +7,25 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const deleteLocalFile = (localFilePath) => {
+  fs.access(localFilePath, fs.constants.F_OK, (err) => {
+    // fs.access is a method provided by file system that check's the accessibility of a file.
+    // fs.constants.F_OK is a method provided by file system that check's the presence of a file.
+
+    if (!err) {
+      fs.unlink(localFilePath, (err) => {
+        if (err) {
+          console.log(`Failed to delete ${localFilePath}`, err);
+        } else {
+          console.log(`${localFilePath} successfully deleted`);
+        }
+      });
+    } else {
+      console.log(`Local file does not exist ${localFilePath}`, err);
+    }
+  });
+};
+
 const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
@@ -24,16 +43,28 @@ const uploadOnCloudinary = async (localFilePath) => {
     console.log("file is uploaded on cloudinary", cloudinaryResponse);
     console.log("cloudinary url", cloudinaryResponse.url);
 
-    fs.unlinkSync(localFilePath); // removing the file from local storage when the file uploaded on cloudinary successfully
+    deleteLocalFile(localFilePath); // removing the file from local storage when the file uploaded on cloudinary successfully
 
     return cloudinaryResponse;
   } catch (error) {
-    fs.unlinkSync(localFilePath); // when there's any issue while uploading file to cloudinary so this code will remove the local saved file.
+    deleteLocalFile(localFilePath); // when there's any issue while uploading file to cloudinary so this code will remove the local saved file.
     return null;
   }
 };
 
-export { uploadOnCloudinary };
+const deletePreviousImage = async (publicId) => {
+  try {
+    await cloudinary.uploader.destroy(publicId, (error, result) => {
+      if (error) {
+        console.log(`error while deleting the previous image`, error);
+      } else {
+        console.log(`previous file deleted successfully`, result);
+      }
+    });
+  } catch (error) {}
+};
+
+export { uploadOnCloudinary, deletePreviousImage };
 
 // file upload agenda:
 
