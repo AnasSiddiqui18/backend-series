@@ -1,13 +1,13 @@
-import { ApiError } from "../utils/apiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import {
   deletePreviousImage,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
-import { ApiResponse } from "../utils/apiResponse.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
 import JWT from "jsonwebtoken";
 import mongoose from "mongoose";
+import { ApiError } from "../utils/ApiError.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   console.log("user id", userId);
@@ -432,7 +432,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
 });
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
-  const { username } = req.params;
+  const { username } = req.params; // for example the channel name is Hitesh Choudhary
 
   console.log("req params", username);
 
@@ -443,13 +443,13 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   const channel = await User.aggregate([
     {
       $match: {
-        userName: username?.toLowerCase(),
+        userName: username?.toLowerCase(), // for example the result is {_id:1, userName:"Hitesh Choudhary" }
       },
     },
     {
       $lookup: {
         from: "subscriptions",
-        localField: "_id",
+        localField: "_id", // this is the _id which is found in the $match method
         foreignField: "channel",
         as: "subscribers", // at the last an array will get construct so we are defining the name of the array
       },
@@ -511,7 +511,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
       $match: {
-        _id: new mongoose.Types.ObjectId(req.user?._id),
+        _id: new mongoose.Types.ObjectId(`${req.user?._id}`),
       },
     },
 

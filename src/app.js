@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+
 const app = express();
 
 app.use(
@@ -8,17 +9,29 @@ app.use(
     origin: process.env.CORS_ORIGIN,
     credentials: true,
   })
-); // use method in express is use for middlewares or for do some configuration settings.
-app.use(express.json({ limit: "16kb" })); // setting the limit of json
-app.use(express.urlencoded({ extendeed: true, limit: "16kb" })); // to encode the url
-app.use(express.static("public")); // to store any pdf, image or static assets in the public folder
-app.use(cookieParser()); // To access user browser cookie and also make some changes in it. This middleware give us the ability to access cookie in req, res parameters.
+);
 
-// routes
+app.use(express.json({ limit: "16kb" }));
+app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(express.static("public"));
+app.use(cookieParser());
+
 import userRouter from "./routes/user.routes.js";
+import subscriptionRouter from "./routes/subscription.routes.js";
+import videoRouter from "./routes/video.routes.js";
 
-// routes declaration
 app.use("/api/v1/users", userRouter);
-export { app };
+app.use("/api/v1/subscriptions", subscriptionRouter);
+app.use("/api/v1/videos", videoRouter);
 
-// http://localhost:8000/api/v1/users/register
+// import playlistRouter from "./routes/playlist.routes.js";
+// import communityRouter from "./routes/community.routes.js";
+// import commentRouter from "./routes/comment.routes.js";
+// import likeRouter from "./routes/like.routes.js";
+
+// app.use("/api/v1/playlists", playlistRouter);
+// app.use("/api/v1/communities", communityRouter);
+// app.use("/api/v1/comments", commentRouter);
+// app.use("/api/v1/likes", likeRouter);
+
+export default app;

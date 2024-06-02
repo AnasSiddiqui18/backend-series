@@ -17,6 +17,8 @@ const storage = multer.diskStorage({
     const fileEx = file.originalname;
     const splitRes = fileEx.split(".");
 
+    console.log("field name", file.fieldname); 
+
     cb(null, file.fieldname + "-" + uniqueSuffix + "." + splitRes[1]); // something like this profile.jpg = profile-1717036800000-98765432.jpg
     // the reason why we are putting null in the first parameter of the callback function is that in Node Js it's a convention in call back functions that we have to write error in the first parameter and if we dont' need the error case so we can simply put null their
   },
