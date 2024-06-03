@@ -511,7 +511,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
       $match: {
-        _id: new mongoose.Types.ObjectId(`${req.user?._id}`),
+        _id: new mongoose.Types.ObjectId(`${req.user?._id}`), // getting the current logged in user
       },
     },
 
@@ -520,7 +520,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         from: "videos",
         localField: "watchHistory",
         foreignField: "_id", // we will fill the video in the watch history property of the user.
-        as: "watchHistory",
+        as: "watchHistory", // watch history is an array contains the video id
         pipeline: [
           {
             $lookup: {
@@ -532,8 +532,9 @@ const getWatchHistory = asyncHandler(async (req, res) => {
               pipeline: [
                 {
                   $project: {
-                    fullName: 1,
                     userName: 1,
+                    fullName: 1,
+                    email: 1,
                     avatar: 1,
                   },
                 },
@@ -542,27 +543,21 @@ const getWatchHistory = asyncHandler(async (req, res) => {
           },
 
           {
-            $addFields: {
-              owner: {
-                $first: "$owner", // returning the first object from the result array "owner"
-              },
-            },
-          },
-
-          {
             $project: {
               thumbnail: 1,
               videoFile: 1,
-              isPublished: 1,
-              owner: 1,
               title: 1,
-              description: 1,
+              owner: {
+                $first: "$owner",
+              },
             },
           },
         ],
       },
     },
   ]);
+
+  console.log("user watch history fetched successfully", user[0].watchHistory);
 
   return res
     .status(200)
@@ -573,6 +568,30 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         "Watch history fetched successfully"
       )
     );
+});
+
+const emptyWatchHistory = asyncHandler(async (req, res) => {
+  console.log("current user", req.user._id);
+
+  // this function will make the current user watch history array empty
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $unset: {
+        watchHistory: null,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-refreshToken");
+
+  if (!user) throw new ApiError(400, "error while updating the watch history");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "watch history updated successfully"));
 });
 
 export {
@@ -587,4 +606,5 @@ export {
   updateCoverImage,
   getUserChannelProfile,
   getWatchHistory,
+  emptyWatchHistory,
 };
