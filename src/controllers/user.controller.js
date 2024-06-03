@@ -533,7 +533,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                 {
                   $project: {
                     fullName: 1,
-                    username: 1,
+                    userName: 1,
                     avatar: 1,
                   },
                 },
@@ -546,6 +546,17 @@ const getWatchHistory = asyncHandler(async (req, res) => {
               owner: {
                 $first: "$owner", // returning the first object from the result array "owner"
               },
+            },
+          },
+
+          {
+            $project: {
+              thumbnail: 1,
+              videoFile: 1,
+              isPublished: 1,
+              owner: 1,
+              title: 1,
+              description: 1,
             },
           },
         ],

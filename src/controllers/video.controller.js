@@ -11,12 +11,43 @@ import { ApiError } from "../utils/ApiError.js";
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-  //TODO: get all videos based on query, sort, pagination
+  // TODO: get all videos based on query, sort, pagination
+
+  console.log("limit", limit);
+
+  let sortCriteria = {};
+  let videoQuery = {};
+
+  if (userId) {
+    videoQuery.owner = userId;
+  }
+
+  if (query) {
+    videoQuery.$or = [
+      { title: { $regex: query, $options: "i" } },
+      { description: { $regex: query, $options: "i" } },
+    ];
+  }
+
+  if (sortBy && sortType) {
+    sortCriteria[sortBy] = sortType === "desc" ? -1 : 1; // sortCriteria = {createdAt: -1}
+  }
+
+  const videos = await Video.find(videoQuery)
+    .sort(sortCriteria)
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit));
+
+  if (!videos.length) {
+    throw new ApiError(400, "No videos found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, videos, "Videos fetched successfully"));
 });
 
 function formatDuration(duration) {
-  console.log("duration", duration);
-
   // Convert duration to integer seconds
   const totalSeconds = Math.floor(duration);
 
@@ -108,6 +139,16 @@ const getVideoById = asyncHandler(async (req, res) => {
 
   //TODO: get video by id
   // Our goal is to get the video by it's id.
+
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $addToSet: { watchHistory: videoId },
+    },
+    {
+      new: true,
+    }
+  );
 
   if (!videoId) {
     throw new ApiError(400, "video id is required");
