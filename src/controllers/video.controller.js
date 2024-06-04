@@ -140,6 +140,8 @@ const getVideoById = asyncHandler(async (req, res) => {
   //TODO: get video by id
   // Our goal is to get the video by it's id.
 
+  const video = await Video.findById(videoId);
+
   if (!videoId) {
     throw new ApiError(400, "video id is required");
   }
@@ -154,88 +156,9 @@ const getVideoById = asyncHandler(async (req, res) => {
     }
   );
 
-  const videoCommentsAggregation = await Video.aggregate([
-    {
-      $match: {
-        _id: new mongoose.Types.ObjectId(`${videoId}`),
-      },
-    },
-
-    {
-      $lookup: {
-        from: "comments",
-        localField: "_id",
-        foreignField: "video",
-        as: "comments",
-
-        pipeline: [
-          {
-            $lookup: {
-              from: "users",
-              localField: "owner",
-              foreignField: "_id",
-              as: "ownerDetails",
-
-              pipeline: [
-                {
-                  $project: {
-                    userName: 1,
-                    fullName: 1,
-                    avatar: 1,
-                  },
-                },
-              ],
-            },
-          },
-
-          {
-            $addFields: {
-              owner: {
-                $first: "$ownerDetails",
-              },
-            },
-          },
-
-          {
-            $project: {
-              content: 1,
-              owner: 1,
-              createdAt: 1,
-              updatedAt: 1,
-            },
-          },
-
-          {
-            $project: {
-              ownerDetails: 0,
-            },
-          },
-        ],
-      },
-    },
-
-    {
-      $project: {
-        thumbnail: 1,
-        videoFile: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        title: 1,
-        comments: 1,
-        description: 1,
-      },
-    },
-  ]);
-
   return res
     .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        videoCommentsAggregation[0],
-        "video by id fetched successfully"
-      )
-    );
+    .json(new ApiResponse(200, video, "video by id fetched successfully"));
 });
 
 const deleteImageFromCloudinary = (url) => {

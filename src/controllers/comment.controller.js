@@ -5,17 +5,126 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
-  //TODO: get all comments for a video
   const { videoId } = req.params;
+
+  if (!videoId) throw new ApiError(400, "video id is required");
+
   const { page = 1, limit = 10 } = req.query;
 
-  const comments = await Comment.find({ video: videoId })
-    .skip((page - 1) * limit) // for example if the page is 1, 1-1 = 0 * 10 = 0
+  const aggregationPipeline = [
+    {
+      $match: {
+        video: new mongoose.Types.ObjectId(`${videoId}`),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+
+        pipeline: [
+          {
+            $project: {
+              avatar: 1,
+              fullName: 1,
+              userName: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $project: {
+        content: 1,
+        video: 1,
+        owner: {
+          $first: "$owner",
+        },
+      },
+    },
+  ];
+
+  const comments = await Comment.aggregate(aggregationPipeline)
+    .skip((parseInt(page) - 1) * limit)
     .limit(parseInt(limit));
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, comments, "comments fetched successfully"));
+  const totalComments = await Comment.countDocuments({
+    video: new mongoose.Types.ObjectId(`${videoId}`),
+  });
+
+  return res.status(200).json({
+    comments,
+    totalComments,
+    currentPage: page,
+    limit: limit,
+    success: true,
+    message: "video comments fetched successfully",
+  });
+});
+
+const getTweetComments = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+
+  if (!tweetId) throw new ApiError(400, "tweet id is required");
+
+  const { page = 1, limit = 10 } = req.query;
+
+  const aggregationPipeline = [
+    {
+      $match: {
+        tweet: new mongoose.Types.ObjectId(`${tweetId}`),
+      },
+    },
+
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+
+        pipeline: [
+          {
+            $project: {
+              fullName: 1,
+              userName: 1,
+              avatar: 1,
+              createdAt: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    {
+      $project: {
+        owner: {
+          $first: "$owner",
+        },
+        content: 1,
+        createdAt: 1,
+      },
+    },
+  ];
+
+  const tweetComments = await Comment.aggregate(aggregationPipeline)
+    .skip((parseInt(page) - 1) * limit)
+    .limit(parseInt(limit));
+
+  const totalComments = await Comment.countDocuments({
+    tweet: new mongoose.Types.ObjectId(`${tweetId}`),
+  });
+
+  return res.status(200).json({
+    tweetComments,
+    totalComments,
+    currentPage: page,
+    limit: limit,
+    success: true,
+    message: "tweet comments fetched successfully",
+  });
 });
 
 const addComment = asyncHandler(async (req, res) => {
@@ -37,6 +146,29 @@ const addComment = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, comment, "comment created successfully"));
+});
+
+const addCommentOnTweets = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const { content } = req.body;
+
+  if (!tweetId) {
+    throw new ApiError(400, "tweet id is required");
+  }
+
+  const createCommentOnTweet = await Comment.create({
+    content,
+    tweet: tweetId,
+    owner: req.user._id,
+  });
+
+  if (!createCommentOnTweet) {
+    throw new ApiError(400, "issue while creating comment on tweet");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, createCommentOnTweet, "Tweet comment created"));
 });
 
 const updateComment = asyncHandler(async (req, res) => {
@@ -85,4 +217,11 @@ const deleteComment = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "comment deleted successfully"));
 });
 
-export { getVideoComments, addComment, updateComment, deleteComment };
+export {
+  getVideoComments,
+  addComment,
+  updateComment,
+  deleteComment,
+  addCommentOnTweets,
+  getTweetComments,
+};
