@@ -12,7 +12,10 @@ const getChannelStats = asyncHandler(async (req, res) => {
 
   const video = await Video.find({ owner: currentUser });
 
-  console.log("video", video);
+  const totalViews = video.reduce(
+    (acc, currentView) => currentView.views + acc,
+    0
+  );
 
   const getChannelVideos = await Video.aggregate([
     {
@@ -71,7 +74,8 @@ const getChannelStats = asyncHandler(async (req, res) => {
   res.status(200).json({
     totalSubscribers: getChannelVideos[0].subscribersCount,
     totalVideos: getChannelVideos?.length,
-    totalLikes: totalLikes,
+    totalLikes,
+    totalViews,
     message: "Channel stats fetched successfully",
   });
 });

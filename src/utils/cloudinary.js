@@ -64,7 +64,12 @@ const deletePreviousImage = async (publicId) => {
   } catch (error) {}
 };
 
-export { uploadOnCloudinary, deletePreviousImage };
+const deleteImageFromCloudinary = (url) => {
+  const publicId = url.split("/").pop().split(".")[0];
+  return publicId;
+};
+
+export { uploadOnCloudinary, deletePreviousImage,deleteImageFromCloudinary };
 
 // file upload agenda:
 

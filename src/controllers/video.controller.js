@@ -1,9 +1,10 @@
-import mongoose, { isValidObjectId } from "mongoose";
+import mongoose from "mongoose";
 import { Video } from "../models/video.model.js";
 import { User } from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
+  deleteImageFromCloudinary,
   deletePreviousImage,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
@@ -64,11 +65,6 @@ function formatDuration(duration) {
   // Construct and return the formatted time string
   return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
 }
-
-// Example usage
-const duration = 14.973292;
-const readableDuration = formatDuration(duration);
-console.log(readableDuration); // Output: "00:00:14"
 
 const publishAVideo = asyncHandler(async (req, res) => {
   // TODO: get video, upload to cloudinary, create video
@@ -140,13 +136,33 @@ const getVideoById = asyncHandler(async (req, res) => {
   //TODO: get video by id
   // Our goal is to get the video by it's id.
 
-  const video = await Video.findById(videoId);
+  const currentUser = await User.findById(req.user._id);
+
+  const isVideoPresentInHistory = currentUser.watchHistory.find((watchedId) =>
+    new mongoose.Types.ObjectId(`${watchedId}`).equals(videoId)
+  );
+
+  let video;
+
+  if (!isVideoPresentInHistory) {
+    video = await Video.findByIdAndUpdate(
+      videoId,
+      {
+        $inc: { views: 1 },
+      },
+      {
+        new: true,
+      }
+    );
+  } else {
+    video = await Video.findById(videoId);
+  }
 
   if (!videoId) {
     throw new ApiError(400, "video id is required");
   }
 
-  await User.findByIdAndUpdate(
+  await await User.findByIdAndUpdate(
     req.user._id,
     {
       $addToSet: { watchHistory: videoId }, // the $addToSet method will add elements to an array if it's not exist.
@@ -160,11 +176,6 @@ const getVideoById = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, video, "video by id fetched successfully"));
 });
-
-const deleteImageFromCloudinary = (url) => {
-  const publicId = url.split("/").pop().split(".")[0];
-  return publicId;
-};
 
 const updateVideo = asyncHandler(async (req, res) => {
   //TODO: update video
