@@ -94,6 +94,7 @@ userSchema.methods.generateAccessToken = function () {
     }
   );
 };
+
 userSchema.methods.generateRefreshToken = function () {
   console.log("refresh token function is working");
 

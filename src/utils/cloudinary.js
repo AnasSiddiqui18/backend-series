@@ -30,8 +30,6 @@ const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
 
-    console.log("local file path", localFilePath);
-
     //upload the file on cloudinary
 
     const cloudinaryResponse = await cloudinary.uploader.upload(localFilePath, {
@@ -69,7 +67,7 @@ const deleteImageFromCloudinary = (url) => {
   return publicId;
 };
 
-export { uploadOnCloudinary, deletePreviousImage,deleteImageFromCloudinary };
+export { uploadOnCloudinary, deletePreviousImage, deleteImageFromCloudinary };
 
 // file upload agenda:
 
